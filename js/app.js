@@ -2,14 +2,13 @@ class ChatManager {
     constructor() {
         this.messages = [];
         this.unsubscribe = null;
+        this.currentChatUser = null;
         this.initChatListeners();
     }
 
     initChatListeners() {
-        // Send message on button click
         document.getElementById('send-btn').addEventListener('click', () => this.sendMessage());
         
-        // Send message on Enter key
         document.getElementById('message-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -18,108 +17,126 @@ class ChatManager {
         });
     }
 
+    startChatWithUser(user) {
+        this.currentChatUser = user;
+        this.stopListening();
+        this.startListening();
+    }
+
     async sendMessage() {
         const messageInput = document.getElementById('message-input');
         const content = messageInput.value.trim();
 
-        if (!content || !window.authManager?.currentUser) {
-            console.log('Cannot send message: no content or user not logged in');
+        if (!content || !window.authManager?.currentUser || !this.currentChatUser) {
             return;
         }
 
         try {
+            // Generate a unique conversation ID (sorted user IDs to ensure consistency)
+            const conversationId = this.generateConversationId(
+                window.authManager.currentUser.uid, 
+                this.currentChatUser.id
+            );
+
             await db.collection('messages').add({
                 content: content,
-                userId: window.authManager.currentUser.uid,
-                userName: window.authManager.currentUser.displayName || 'Anonymous',
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                type: 'text'
+                senderId: window.authManager.currentUser.uid,
+                senderName: window.authManager.currentUser.displayName || window.authManager.currentUser.email,
+                receiverId: this.currentChatUser.id,
+                receiverName: this.currentChatUser.name || this.currentChatUser.email,
+                conversationId: conversationId,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
 
             messageInput.value = '';
         } catch (error) {
             console.error('Error sending message:', error);
-            this.showError('Failed to send message. Please try again.');
+            this.showError('Failed to send message');
         }
     }
 
+    generateConversationId(userId1, userId2) {
+        // Sort user IDs to ensure consistent conversation ID regardless of who starts the chat
+        return [userId1, userId2].sort().join('_');
+    }
+
     startListening() {
-        // Stop previous listener if exists
         if (this.unsubscribe) {
             this.unsubscribe();
         }
 
-        // Show loading indicator
-        this.showLoading();
+        if (!window.authManager?.currentUser || !this.currentChatUser) {
+            return;
+        }
 
-        console.log('Starting to listen for messages...');
+        const conversationId = this.generateConversationId(
+            window.authManager.currentUser.uid,
+            this.currentChatUser.id
+        );
 
-        // Listen for new messages
+        console.log('Starting to listen for messages in conversation:', conversationId);
+
+        // Clear messages container
+        const messagesContainer = document.getElementById('messages-container');
+        messagesContainer.innerHTML = '';
+
         this.unsubscribe = db.collection('messages')
+            .where('conversationId', '==', conversationId)
             .orderBy('timestamp', 'asc')
             .onSnapshot((snapshot) => {
-                this.hideLoading();
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type === 'added') {
-                        this.addMessageToUI(change.doc.data(), change.doc.id);
-                    }
+                // Clear existing messages
+                messagesContainer.innerHTML = '';
+                this.messages = [];
+
+                if (snapshot.empty) {
+                    messagesContainer.innerHTML = '<div class="welcome-message"><p>No messages yet. Start the conversation!</p></div>';
+                    return;
+                }
+
+                snapshot.forEach((doc) => {
+                    this.addMessageToUI(doc.data(), doc.id);
                 });
             }, (error) => {
                 console.error('Error listening to messages:', error);
-                this.showError('Failed to load messages. Please refresh the page.');
             });
     }
 
     addMessageToUI(messageData, messageId) {
-        // Check if message already exists
         if (this.messages.includes(messageId)) return;
         this.messages.push(messageId);
 
-        const chatContainer = document.getElementById('chat-container');
-        const isCurrentUser = messageData.userId === window.authManager?.currentUser?.uid;
+        const messagesContainer = document.getElementById('messages-container');
+        const isCurrentUser = messageData.senderId === window.authManager?.currentUser?.uid;
 
         const messageElement = document.createElement('div');
         messageElement.className = `message ${isCurrentUser ? 'sent' : 'received'}`;
-        messageElement.dataset.messageId = messageId;
 
         const timestamp = messageData.timestamp?.toDate() || new Date();
         const timeString = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         messageElement.innerHTML = `
-            ${!isCurrentUser ? <div class="message-sender">${this.escapeHtml(messageData.userName)}</div> : ''}
+            ${!isCurrentUser ? <div class="message-sender">${this.escapeHtml(messageData.senderName)}</div> : ''}
             <div class="message-content">${this.escapeHtml(messageData.content)}</div>
             <div class="message-info">
                 <span>${timeString}</span>
             </div>
         `;
 
-        chatContainer.appendChild(messageElement);
+        messagesContainer.appendChild(messageElement);
         this.scrollToBottom();
     }
 
     scrollToBottom() {
-        const chatContainer = document.getElementById('chat-container');
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-
-    showLoading() {
-        // Loading element is already in the HTML
-        document.getElementById('loading-messages').style.display = 'block';
-    }
-
-    hideLoading() {
-        const loadingDiv = document.getElementById('loading-messages');
-        if (loadingDiv) {
-            loadingDiv.style.display = 'none';
-        }
+        const messagesContainer = document.getElementById('messages-container');
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
     showError(message) {
-        const chatContainer = document.getElementById('chat-container');
+        const messagesContainer = document.getElementById('messages-container');
         const errorDiv = document.createElement('div');
         errorDiv.className = 'error';
         errorDiv.textContent = message;
-        chatContainer.appendChild(errorDiv);
+        messagesContainer.appendChild(errorDiv);
 
         setTimeout(() => {
             if (errorDiv.parentNode) {
@@ -140,15 +157,11 @@ class ChatManager {
     stopListening() {
         if (this.unsubscribe) {
             this.unsubscribe();
-            this.unsubscribe = null;
         }
         this.messages = [];
-        const chatContainer = document.getElementById('chat-container');
-        chatContainer.innerHTML = '<div class="loading" id="loading-messages">Loading messages...</div>';
     }
 }
 
-// Initialize chat manager when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.chatManager = new ChatManager();
 });
