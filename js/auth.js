@@ -7,11 +7,14 @@ class AuthManager {
     initAuthListeners() {
         // Listen for auth state changes
         auth.onAuthStateChanged((user) => {
-            console.log('Auth state changed:', user);
+            console.log('Auth state changed:', user ? 'User logged in' : 'No user');
             if (user) {
                 this.currentUser = user;
-                this.showApp();
-                this.updateUserDisplay(user);
+                this.showContacts();
+                if (window.contactsManager) {
+                    window.contactsManager.setCurrentUser(user);
+                    window.contactsManager.loadUsers();
+                }
             } else {
                 this.currentUser = null;
                 this.showAuth();
@@ -20,20 +23,14 @@ class AuthManager {
 
         // Login form
         document.getElementById('login-btn').addEventListener('click', () => this.login());
-        document.getElementById('login-password').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.login();
-        });
-
+        
         // Signup form
         document.getElementById('signup-btn').addEventListener('click', () => this.signup());
-        document.getElementById('signup-password').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.signup();
-        });
-
+        
         // Form switches
         document.getElementById('show-signup').addEventListener('click', () => this.showSignupForm());
         document.getElementById('show-login').addEventListener('click', () => this.showLoginForm());
-
+        
         // Logout
         document.getElementById('logout-btn').addEventListener('click', () => this.logout());
     }
@@ -48,9 +45,11 @@ class AuthManager {
         }
 
         try {
-            await auth.signInWithEmailAndPassword(email, password);
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            console.log('Login successful:', userCredential.user);
             this.clearAuthForms();
         } catch (error) {
+            console.error('Login error:', error);
             this.showError(this.getAuthErrorMessage(error));
         }
     }
@@ -72,6 +71,7 @@ class AuthManager {
 
         try {
             const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+            console.log('Signup successful:', userCredential.user);
             
             // Update user profile
             await userCredential.user.updateProfile({
@@ -87,6 +87,7 @@ class AuthManager {
 
             this.clearAuthForms();
         } catch (error) {
+            console.error('Signup error:', error);
             this.showError(this.getAuthErrorMessage(error));
         }
     }
@@ -94,19 +95,23 @@ class AuthManager {
     async logout() {
         try {
             await auth.signOut();
+            console.log('Logout successful');
         } catch (error) {
-            this.showError(this.getAuthErrorMessage(error));
+            console.error('Logout error:', error);
+            this.showError('Logout failed');
         }
     }
 
     showAuth() {
         document.getElementById('auth-container').classList.remove('hidden');
-        document.getElementById('app-container').classList.add('hidden');
+        document.getElementById('contacts-container').classList.add('hidden');
+        document.getElementById('chat-container').classList.add('hidden');
     }
 
-    showApp() {
+    showContacts() {
         document.getElementById('auth-container').classList.add('hidden');
-        document.getElementById('app-container').classList.remove('hidden');
+        document.getElementById('contacts-container').classList.remove('hidden');
+        document.getElementById('chat-container').classList.add('hidden');
     }
 
     showLoginForm() {
@@ -117,27 +122,6 @@ class AuthManager {
     showSignupForm() {
         document.getElementById('login-form').classList.add('hidden');
         document.getElementById('signup-form').classList.remove('hidden');
-    }
-
-    updateUserDisplay(user) {
-        const usernameElement = document.getElementById('username');
-        const userAvatar = document.getElementById('user-avatar');
-        
-        usernameElement.textContent = user.displayName || 'User';
-        
-        if (user.displayName) {
-            const initials = user.displayName.split(' ').map(n => n[0]).join('').toUpperCase();
-            userAvatar.textContent = initials;
-            userAvatar.style.backgroundColor = this.getRandomColor();
-        } else {
-            userAvatar.innerHTML = '<i class="fas fa-user"></i>';
-            userAvatar.style.backgroundColor = '';
-        }
-    }
-
-    getRandomColor() {
-        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
-        return colors[Math.floor(Math.random() * colors.length)];
     }
 
     clearAuthForms() {
@@ -187,13 +171,18 @@ class AuthManager {
                 return 'Password is too weak';
             case 'auth/network-request-failed':
                 return 'Network error. Please check your connection';
+            case 'auth/operation-not-allowed':
+                return 'Email/password accounts are not enabled. Please contact support.';
             default:
-                return error.message || 'An error occurred';
+                return error.message || 'An error occurred during authentication';
         }
     }
 }
 
-// Initialize auth manager when DOM is loaded
+// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.authManager = new AuthManager();
+    // Wait a bit for Firebase to initialize
+    setTimeout(() => {
+        window.authManager = new AuthManager();
+    }, 100);
 });
