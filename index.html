@@ -35,8 +35,8 @@
         </div>
     </div>
 
-    <!-- Main Chat App -->
-    <div id="app-container" class="app-container hidden">
+    <!-- Contacts Screen -->
+    <div id="contacts-container" class="contacts-container hidden">
         <!-- Header -->
         <header class="header">
             <div class="header-left">
@@ -49,7 +49,7 @@
                 </div>
             </div>
             <div class="header-right">
-                <i class="fas fa-search"></i>
+                <i class="fas fa-search" id="search-users"></i>
                 <i class="fas fa-ellipsis-v"></i>
                 <button id="logout-btn" class="logout-btn">
                     <i class="fas fa-sign-out-alt"></i>
@@ -57,9 +57,40 @@
             </div>
         </header>
 
-        <!-- Chat Container -->
-        <div class="chat-container" id="chat-container">
-            <div class="loading" id="loading-messages">Loading messages...</div>
+        <!-- Contacts List -->
+        <div class="contacts-list" id="contacts-list">
+            <div class="loading" id="loading-contacts">Loading contacts...</div>
+        </div>
+    </div>
+
+    <!-- Chat Screen -->
+    <div id="chat-container" class="chat-container hidden">
+        <!-- Chat Header -->
+        <header class="chat-header">
+            <button id="back-to-contacts" class="back-button">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <div class="chat-user-info">
+                <div class="avatar" id="chat-user-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>
+                    <h3 id="chat-username">Select a user</h3>
+                    <p id="chat-user-status">Online</p>
+                </div>
+            </div>
+            <div class="chat-header-right">
+                <i class="fas fa-video"></i>
+                <i class="fas fa-phone"></i>
+                <i class="fas fa-ellipsis-v"></i>
+            </div>
+        </header>
+
+        <!-- Messages Container -->
+        <div class="messages-container" id="messages-container">
+            <div class="welcome-message">
+                <p>Select a contact to start chatting</p>
+            </div>
         </div>
 
         <!-- Input Area -->
@@ -70,17 +101,17 @@
             <button class="attach-button">
                 <i class="fas fa-paperclip"></i>
             </button>
-            <input type="text" id="message-input" class="message-input" placeholder="Type a message...">
-            <button id="send-btn" class="send-button">
+            <input type="text" id="message-input" class="message-input" placeholder="Type a message..." disabled>
+            <button id="send-btn" class="send-button" disabled>
                 <i class="fas fa-paper-plane"></i>
             </button>
         </div>
     </div>
 
-    <!-- Firebase SDK v9 Compat -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
         // Firebase configuration
@@ -95,15 +126,20 @@
         };
 
         // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
+        try {
+            firebase.initializeApp(firebaseConfig);
+            console.log('Firebase initialized successfully');
+        } catch (error) {
+            console.error('Firebase initialization error:', error);
+        }
+
         const auth = firebase.auth();
         const db = firebase.firestore();
-
-        console.log('Firebase initialized successfully');
     </script>
 
     <!-- App Scripts -->
     <script src="./js/auth.js"></script>
+    <script src="./js/contacts.js"></script>
     <script src="./js/chat.js"></script>
     <script src="./js/app.js"></script>
 </body>
