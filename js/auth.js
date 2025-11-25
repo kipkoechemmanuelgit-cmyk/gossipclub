@@ -7,6 +7,7 @@ class AuthManager {
     initAuthListeners() {
         // Listen for auth state changes
         auth.onAuthStateChanged((user) => {
+            console.log('Auth state changed:', user);
             if (user) {
                 this.currentUser = user;
                 this.showApp();
@@ -47,8 +48,7 @@ class AuthManager {
         }
 
         try {
-            const { signInWithEmailAndPassword } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
-            await signInWithEmailAndPassword(auth, email, password);
+            await auth.signInWithEmailAndPassword(email, password);
             this.clearAuthForms();
         } catch (error) {
             this.showError(this.getAuthErrorMessage(error));
@@ -71,21 +71,18 @@ class AuthManager {
         }
 
         try {
-            const { createUserWithEmailAndPassword, updateProfile } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
-            const { doc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-            
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const userCredential = await auth.createUserWithEmailAndPassword(email, password);
             
             // Update user profile
-            await updateProfile(userCredential.user, {
+            await userCredential.user.updateProfile({
                 displayName: name
             });
 
             // Create user document in Firestore
-            await setDoc(doc(db, 'users', userCredential.user.uid), {
+            await db.collection('users').doc(userCredential.user.uid).set({
                 name: name,
                 email: email,
-                createdAt: serverTimestamp()
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
             this.clearAuthForms();
@@ -96,8 +93,7 @@ class AuthManager {
 
     async logout() {
         try {
-            const { signOut } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
-            await signOut(auth);
+            await auth.signOut();
         } catch (error) {
             this.showError(this.getAuthErrorMessage(error));
         }
@@ -199,15 +195,5 @@ class AuthManager {
 
 // Initialize auth manager when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Wait for Firebase to be available
-    if (typeof auth !== 'undefined') {
-        window.authManager = new AuthManager();
-    } else {
-        // Retry after a short delay if Firebase isn't ready
-        setTimeout(() => {
-            if (typeof auth !== 'undefined') {
-                window.authManager = new AuthManager();
-            }
-        }, 500);
-    }
+    window.authManager = new AuthManager();
 });
